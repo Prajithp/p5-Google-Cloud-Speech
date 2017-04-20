@@ -1,0 +1,6 @@
+Changes
+Makefile.PL
+MANIFEST
+README.md
+t/Google-Cloud-Speech.t
+lib/Google/Cloud/Speech.pm

@@ -13,7 +13,14 @@ $ cpanm install Google::Cloud::Speech
 
 This library uses Service Account credentials to connect to Google Cloud services.
 
-For more details visit the [Authentication Guide](https://googlecloudplatform.github.io/google-cloud-ruby/#/docs/google-cloud-speech/guides/authentication).
+
+### To create, Google Service Account Key:
+
+	* Login to Google Apps Console and select your project
+	* Click on create credentials-> service account key. 
+	* Select a service account and key type as JSON and click on create and downlaoded the JSON file.
+
+For more details visit the [Authentication Guide](https://developers.google.com/identity/protocols/application-default-credentials).
 
 ## Example
 

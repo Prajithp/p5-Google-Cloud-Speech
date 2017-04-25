@@ -1,20 +1,22 @@
 package Google::Cloud::Speech;
 
 use Mojo::Base -base;
+
+use Google::Cloud::Speech::Auth;
 use Mojo::UserAgent;
 use MIME::Base64;
 use Mojo::File;
 use Carp;
 
-$Google::Cloud::Speech::VERSION = '0.02';
+$Google::Cloud::Speech::VERSION = '0.03';
 
-has api_key => sub { croak 'invalid api key'; };
-has ua      => sub { Mojo::UserAgent->new() };
-has file    => sub { croak 'you must specify the audio file'; };
-has rate    => '16000';
-has lang    => 'en-IN';
+has secret_file => sub { };
+has ua          => sub { Mojo::UserAgent->new() };
+has file        => sub { croak 'you must specify the audio file'; };
+has samplerate  => '16000';
+has language    => 'en-IN';
+has baseurl  => 'https://speech.googleapis.com/v1';
 has encoding => 'linear16';
-has url      => 'https://speech.googleapis.com/v1';
 has async_id => undef;
 has results  => undef;
 
@@ -23,11 +25,27 @@ has config => sub {
 
     return {
         encoding        => $self->encoding,
-        sampleRateHertz => $self->rate,
-        languageCode    => $self->lang,
+        sampleRateHertz => $self->samplerate,
+        languageCode    => $self->language,
         profanityFilter => 'false',
     };
 };
+
+has auth_class  => sub {
+	my $self = shift; 
+	Google::Cloud::Speech::Auth->new(from_json => $self->secret_file);
+};
+
+sub token {
+	my $self = shift;
+
+	my $auth_obj = $self->auth_class;
+	unless ($auth_obj->has_valid_token) {
+		return $auth_obj->request_token->token();
+	}
+
+	return $auth_obj->token;
+}
 
 sub syncrecognize {
     my $self = shift;
@@ -35,21 +53,24 @@ sub syncrecognize {
     my $audio_raw = Mojo::File->new( $self->file )->slurp();
 
     my $audio = { "content" => encode_base64( $audio_raw, "" ) };
-    my $header = { 'Content-Type' => "application/json" };
+    my $header = {
+        'Content-Type'  => "application/json",
+        'Authorization' => $self->token,
+    };
 
     my $hash_ref = {
         config => $self->config,
         audio  => $audio,
     };
 
-    my $url = $self->url . "/speech:recognize?key=" . $self->api_key;
+    my $url = $self->baseurl . "/speech:recognize";
     my $tx = $self->ua->post( $url => $header => json => $hash_ref );
 
     my $response = $self->handle_errors($tx)->json;
     if ( my $results = $response->{'results'} ) {
         return $self->results($results);
     }
-    return $self->results([]);
+    return $self->results( [] );
 
 }
 
@@ -58,15 +79,17 @@ sub asyncrecognize {
 
     my $audio_raw = Mojo::File->new( $self->file )->slurp();
     my $audio     = { "content" => encode_base64( $audio_raw, "" ) };
-    my $header    = { 'Content-Type' => "application/json" };
+    my $header    = {
+        'Content-Type'  => "application/json",
+        'Authorization' => $self->token,
+    };
 
     my $hash_ref = {
         config => $self->config,
         audio  => $audio,
     };
 
-    my $url
-        = $self->url . "/speech:longrunningrecognize?key=" . $self->api_key;
+    my $url = $self->url . "/speech:longrunningrecognize";
     my $tx = $self->ua->post( $url => $header => json => $hash_ref );
 
     my $res = $self->handle_errors($tx)->json;
@@ -85,8 +108,8 @@ sub is_done {
     my $async_id = $self->async_id;
     return unless $async_id;
 
-    my $url = $self->url . "/operations/" . $async_id . "?key=" . $self->api_key;
-    my $tx = $self->ua->get($url);
+    my $url = $self->url . "/operations/" . $async_id;
+    my $tx = $self->ua->get( $url => { 'Authorization' => $self->token } );
 
     my $res     = $self->handle_errors($tx)->json;
     my $is_done = $res->{'done'};
@@ -125,8 +148,8 @@ Google::Cloud::Speech - An interface to Google cloud speech service
 	use Google::Cloud::Speech;
 
 	my $speech = Google::Cloud::Speech->new(
-		file    => 'test.wav',
-		api_key => 'xxxxx'
+		file        => 'test.wav',
+		secret_file => 'my/google/app/project/sa/json/file'
 	);
 
 	# long running process
@@ -144,20 +167,26 @@ This module lets you access Google cloud speech service.
 
 =head1 ATTRIBUTES
 
-=head2 C<api_key>
+=head2 C<secret_file>
 
-	my $key = $speech->api_key;
-	my $key = $speech->api_key('xxxxNEWKEYxxxx');
-	Cloud Speech API key, used for authanitication.  Usually set using L</new>.
+Loads the JSON file from Google with the client ID informations.
+
+	$speech->secret_file('/my/google/app/project/sp/json/file');
+
+To create, Google Service Account Key:
+
+	1) Login to Google Apps Console and select your project
+	2) Click on create credentials-> service account key. 
+	4) Select a service account and key type as JSON and click on create and downlaoded the JSON file.
 	
-	See https://cloud.google.com/docs/authentication for more details about API authentication.
+	See L<Google API Doc|https://developers.google.com/identity/protocols/application-default-credentials> for more details about API authentication.
 
 =head2 encoding
 
 	my $encoding = $speech->encoding('linear16');
 
-	Encoding of audio data to be recognized.
-	Acceptable values are:
+Encoding of audio data to be recognized.
+Acceptable values are:
         
 		* linear16 - Uncompressed 16-bit signed little-endian samples.
 			(LINEAR16)
@@ -183,31 +212,31 @@ This module lets you access Google cloud speech service.
 	my $file = $speech->('path/to/audio/file.wav');
 
 
-=head2 lang
+=head2 language
 
-	my $lang = $speech->lang('en-IN');
+	my $lang = $speech->language('en-IN');
 
-	The language of the supplied audio as a BCP-47 language tag. 
-	Example: "en-IN" for English (United States), "en-GB" for English (United
-	Kingdom), "fr-FR" for French (France). See Language Support for a list of the currently supported language codes. 
-	L<https://cloud.google.com/speech/docs/languages>
+The language of the supplied audio as a BCP-47 language tag. 
+Example: "en-IN" for English (United States), "en-GB" for English (United
+Kingdom), "fr-FR" for French (France). See Language Support for a list of the currently supported language codes. 
+L<Language codes|https://cloud.google.com/speech/docs/languages>
 
-=head2 rate
+=head2 samplrate
 
-	my $sample_rate = $speech->rate('16000');
+	my $sample_rate = $speech->samplerate('16000');
 
-	Sample rate in Hertz of the audio data to be recognized. Valid values
-	are: 8000-48000. 16000 is optimal. For best results, set the sampling
-	rate of the audio source to 16000 Hz. If that's not possible, use the
-	native sample rate of the audio source (instead of re-sampling).
+Sample rate in Hertz of the audio data to be recognized. Valid values
+are: 8000-48000. 16000 is optimal. For best results, set the sampling
+rate of the audio source to 16000 Hz. If that's not possible, use the
+native sample rate of the audio source (instead of re-sampling).
 
 
 =head1 METHODS
 
 =head2 asyncrecognize
 
-	Performs asynchronous speech recognition: 
-	receive results via the google.longrunning.Operations interface. 
+Performs asynchronous speech recognition: 
+receive results via the google.longrunning.Operations interface. 
 
 	my $operation = $speech->asyncrecognize();
 	my $is_done = $operation->is_done;
@@ -217,31 +246,32 @@ This module lets you access Google cloud speech service.
 		}
 	}
 
-=head2 is_done
-
-	Checks if the speech-recognition processing of the audio data is complete.
-	return 1 when complete, 0 otherwise.
-
-=head2 results
-
-	print Dumper $speech->syncrecognize->results;
-	
-	returns the converted data as Arrayref.
 
 =head2 syncrecognize
 
-	Performs synchronous speech recognition: receive results after all audio has been sent and processed.
+Performs synchronous speech recognition: receive results after all audio has been sent and processed.
 	
 	my $operation = $speech->syncrecognize;
 	print $operation->results;
 
+=head2 is_done
+
+Checks if the speech-recognition processing of the audio data is complete.
+return 1 when complete, 0 otherwise.
+
+=head2 results
+
+returns the transcribed data as Arrayref.
+
+	print Dumper $speech->syncrecognize->results;
+
 =head1 AUTHOR
 
-Prajith NDZ C<prajith@ndimensionz.com>
+Prajith P C<me@prajith.in>
 
 =head1 COPYRIGHT AND LICENSE
 
-This software is Copyright (c) 2017, Prajith Ndimensionz.
+This software is Copyright (c) 2017, Prajith P.
 
 This is free software, you can redistribute it and/or modify it under
 the same terms as Perl language system itself.
@@ -251,7 +281,7 @@ the same terms as Perl language system itself.
 
 =over
 
-=item * L<Google Cloud Speech API| https://cloud.google.com/speech/reference/rest/>
+=item * L<Google Cloud Speech API|https://cloud.google.com/speech/reference/rest/>
 
 =back
 

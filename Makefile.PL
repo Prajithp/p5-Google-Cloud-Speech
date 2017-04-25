@@ -13,6 +13,8 @@ WriteMakefile(
         'Mojo::UserAgent'            => 0,
         'MIME::Base64'               => 0,
         'Mojo::File'                 => 0,
+        'Mojo::JWT::Google'          => 0,
+        'Crypt::OpenSSL::RSA'        => 0,
         'Carp'                       => 0,
     },
     META_MERGE => {

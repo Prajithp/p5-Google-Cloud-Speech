@@ -1,3 +1,6 @@
+0.05  Tue May 15 11:47:00 2017
+    - Added Auth.pm to MANIFEST file 
+
 0.04  Tue May 15 11:47:00 2017
     - POD cleanup and version bump
 

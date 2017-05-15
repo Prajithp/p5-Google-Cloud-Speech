@@ -75,24 +75,4 @@ sub refresh {
     return $self;
 }
 
-# package main;
-
-# use Data::Dumper;
-
-# my $auth = Google::Cloud::Speech::Auth->new(
-#     from_json => '/home/prajith/dev/perl/tmp/speach-96d83185edc1.json', );
-
-# my $key = $auth->token;
-
-# for my $range ( 0 .. 100 ) {
-#     my $key = $auth->refresh->token;
-#     my $obj = {
-#         key   => $key,
-#         issue => $auth->jwt_token->issue_at,
-#         exp   => $auth->jwt_token->expires_in
-#     };
-#     print Dumper $obj;
-#     sleep(1);
-# }
-
 1;

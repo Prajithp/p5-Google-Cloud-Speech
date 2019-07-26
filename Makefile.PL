@@ -7,6 +7,7 @@ WriteMakefile(
     AUTHOR        => 'Prajith NDZ <prajith@ndimensionz.com, prajithpalakkuda@gmail.com>',
     VERSION_FROM  => 'lib/Google/Cloud/Speech.pm',
     ABSTRACT_FROM => 'lib/Google/Cloud/Speech.pm',
+    LICENSE       => 'perl_5',
     PL_FILES      => {},
     PREREQ_PM     => {
         'Mojolicious'                => 0,

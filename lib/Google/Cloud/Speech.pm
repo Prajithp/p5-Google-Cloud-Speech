@@ -126,7 +126,7 @@ sub handle_errors {
     my ( $self, $tx ) = @_;
     my $res = $tx->res;
 
-    unless ( $tx->success ) {
+    unless ( $res->is_success ) {
         my $error_ref = $tx->error;
         croak( "invalid response: " . $error_ref->{'message'} );
     }
